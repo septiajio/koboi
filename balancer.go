@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"sync/atomic"
 )
 
 type Backend struct {
@@ -14,22 +13,21 @@ type Backend struct {
 	ReverseProxy *httputil.ReverseProxy
 }
 
+type LoadBalancerService interface {
+	ServeHTTP(backends []*Backend, w http.ResponseWriter, r *http.Request)
+}
+
 type LoadBalancer struct {
+	balancer LoadBalancerService
 	backends []*Backend
-	current  uint64
 }
 
-// Select the next backend using round-robin
-func (lb *LoadBalancer) getNextBackend() *Backend {
-	index := atomic.AddUint64(&lb.current, 1)
-	return lb.backends[int(index)%len(lb.backends)]
+func New(balancer LoadBalancerService, backends []*Backend) *LoadBalancer {
+	return &LoadBalancer{balancer, backends}
 }
 
-// Handle and forward the request
 func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	backend := lb.getNextBackend()
-	log.Printf("Forwarding request to: %s", backend.URL.String())
-	backend.ReverseProxy.ServeHTTP(w, r)
+	lb.balancer.ServeHTTP(lb.backends, w, r)
 }
 
 func NewBackend(rawurl string) *Backend {

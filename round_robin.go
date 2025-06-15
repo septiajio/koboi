@@ -14,6 +14,10 @@ type RoundRobin struct {
 // Select the next backend using round-robin
 func (lb *RoundRobin) getNextBackend(backends []*Backend) *Backend {
 	index := atomic.AddUint64(&lb.current, 1)
+	if len(backends) == 0 {
+		log.Printf("No backend services")
+		return nil
+	}
 	return backends[int(index)%len(backends)]
 }
 
